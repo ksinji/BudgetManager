@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:paddingTop="1dp"
+    android:background="@color/darkgray">
+
+    <TextView
+        android:id="@+id/selected_date"
+        android:layout_width="0dp"
+        android:layout_height="35sp"
+        android:layout_weight="1.5"
+        android:layout_marginRight="1sp"
+        android:background="@android:color/white"
+        android:gravity="center"
+        android:textColor="@color/darkgray"
+        android:textSize="18sp" />
+
+    <EditText
+        android:id="@+id/content"
+        android:layout_width="0dp"
+        android:layout_height="35sp"
+        android:layout_weight="3"
+        android:layout_marginRight="1sp"
+        android:background="@android:color/white"
+        android:gravity="center"
+        android:textColor="@color/darkgray"
+        android:textSize="18sp" />
+
+    <EditText
+        android:id="@+id/cost"
+        android:layout_width="0dp"
+        android:layout_height="35sp"
+        android:layout_weight="1.7"
+        android:background="@android:color/white"
+        android:gravity="center"
+        android:textColor="@color/darkgray"
+        android:textSize="18sp"
+        android:inputType="number" />
+</LinearLayout>
