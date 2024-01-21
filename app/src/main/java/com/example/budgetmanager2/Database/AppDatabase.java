@@ -11,7 +11,7 @@ import com.example.budgetmanager2.DAO.BudgetDAO;
 import com.example.budgetmanager2.DAO.ExpenseDAO;
 import com.example.budgetmanager2.Expense;
 
-@Database(entities = {Budget.class, Expense.class}, version = 3, exportSchema = true)
+@Database(entities = {Budget.class, Expense.class}, version = 8, exportSchema = true)
 public abstract class AppDatabase extends RoomDatabase {
     public abstract BudgetDAO budgetDao();
     public abstract ExpenseDAO expenseDao();
