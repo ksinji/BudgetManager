@@ -28,6 +28,6 @@ public interface BudgetDAO {
     List<Budget> getAllBudgets();
 
     @Query("SELECT * FROM Budget WHERE year = :year AND month = :month LIMIT 1")
-    Budget getBudgetByMonthYear(int year, String month);
+    Budget getBudgetByMonthYear(int year, int month);
 
 }

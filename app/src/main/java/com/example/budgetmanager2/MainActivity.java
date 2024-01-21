@@ -2,6 +2,7 @@ package com.example.budgetmanager2;
 
 import android.app.DatePickerDialog;
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.os.Bundle;
@@ -69,7 +70,7 @@ public class MainActivity extends AppCompatActivity {
         new Thread(new Runnable() {
             @Override
             public void run() {
-                Budget budgetData = db.budgetDao().getBudgetByMonthYear(currentYear, String.valueOf(currentMonthNum));
+                Budget budgetData = db.budgetDao().getBudgetByMonthYear(currentYear, currentMonthNum);
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
@@ -147,8 +148,23 @@ public class MainActivity extends AppCompatActivity {
         adapter = new expenseAdapter(expenseList, this);
         adapter.notifyDataSetChanged();
 
-        // DB에도 11개의 빈 행 생성
-        initializeDB();
+
+        /*
+
+        SharedPreferences sharedPreferences = getSharedPreferences("BudgetManager", MODE_PRIVATE);
+        boolean isFirstRun = sharedPreferences.getBoolean("FirstRun", true);
+
+        if (isFirstRun) {
+            // 앱이 처음 실행된 경우에만 DB에도 11개의 빈 행 생성
+            initializeDB();
+
+            // 이제 앱이 처음 실행된 것이 아니므로 FirstRun 값을 false로 설정
+            SharedPreferences.Editor editor = sharedPreferences.edit();
+            editor.putBoolean("FirstRun", false);
+            editor.apply();
+        }
+
+        */
 
 
         // RecyclerView와 Adapter 연결
@@ -178,19 +194,22 @@ public class MainActivity extends AppCompatActivity {
         // 남은 예산 출력 기능 --> TODO: 예산이 변경되거나 새로운 소비 정보가 DB에 추가될 때마다 실행되어야 함
         // 새로운 스레드를 생성해서 DB 작업을 수행
         new Thread(new Runnable() {
+            private int sumOfCost;
             @Override
             public void run() {
                 // DB에서 해당 월의 예산 정보를 불러오기
-                Budget budgetData = db.budgetDao().getBudgetByMonthYear(currentYear, String.valueOf(currentMonthNum));
-                // DB에서 해당 예산의 소비 정보의 합계를 불러오기
-                int sumOfCost = db.expenseDao().getSumOfCost(budgetData.id);
+                Budget budgetData = db.budgetDao().getBudgetByMonthYear(currentYear, currentMonthNum);
+                // DB에서 해당 예산의 소비 정보의 합계를 불러오기 (null이 아닐 경우에만)
+                if (budgetData != null) {
+                    sumOfCost = db.expenseDao().getSumOfCost(budgetData.id);
+                }
 
                 // 메인 스레드에서 UI를 업데이트
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
                         if (budgetData != null) {
-                            int remainingBudget = budgetData.amount - sumOfCost; // 남은 예산을 계산합니다.
+                            int remainingBudget = budgetData.amount - sumOfCost; // 남은 예산을 계산
 
                             // 남은 예산을 표시
                             TextView nowBudgetTextView = findViewById(R.id.nowBudget);
@@ -310,8 +329,12 @@ public class MainActivity extends AppCompatActivity {
                                 // 데이터베이스에 날짜 저장
                                 new Thread(() -> {
                                     Expense expense = db.expenseDao().getExpenseById(id);
+                                    Log.d("Expense Check", "Expense: " + expense);
                                     expense.setDate(selectedCalendar.getTime());
+                                    Log.d("Date Check", "Date: " + expense.getDate());
                                     db.expenseDao().update(expense);
+                                    Expense updatedExpense = db.expenseDao().getExpenseById(id);
+                                    Log.d("Update Check", "Updated Expense Date: " + updatedExpense.getDate());
                                 }).start();
 
                             }
@@ -326,23 +349,26 @@ public class MainActivity extends AppCompatActivity {
 
     // Budget Table 초기화
     public void insertInitialBudget(BudgetDAO budgetDao) {
-        // 현재 년도와 월을 가져옵니다.
         Calendar calendar = Calendar.getInstance();
         int currentYear = calendar.get(Calendar.YEAR);
-        String currentMonth = String.format("%02d", calendar.get(Calendar.MONTH) + 1);
+        int currentMonth = calendar.get(Calendar.MONTH) + 1;
 
-        // Budget 객체를 생성합니다.
-        Budget initialBudget = new Budget();
-        initialBudget.year = currentYear;
-        initialBudget.month = currentMonth;
-        initialBudget.amount = 0;
 
-        // BudgetDao를 사용하여 데이터베이스에 Budget 객체를 삽입
         new Thread(new Runnable() {
             @Override
             public void run() {
-                // 여기에서 데이터베이스 작업을 수행합니다.
-                budgetDao.insert(initialBudget);
+                // 현재 년도와 월에 해당하는 Budget이 이미 존재하는지 확인
+                Budget existingBudget = budgetDao.getBudgetByMonthYear(currentYear, currentMonth);
+                if (existingBudget == null) {
+                    // Budget이 존재하지 않는 경우에만 새로운 Budget을 삽입
+                    Budget initialBudget = new Budget();
+                    initialBudget.year = currentYear;
+                    initialBudget.month = currentMonth;
+                    initialBudget.amount = 0;
+
+                    Log.d("Budget", "Year: " + initialBudget.year + ", Month: " + initialBudget.month + ", Amount: " + initialBudget.amount);
+                    budgetDao.insert(initialBudget);
+                }
             }
         }).start();
     }
@@ -359,7 +385,7 @@ public class MainActivity extends AppCompatActivity {
                 int currentMonth = calendar.get(Calendar.MONTH) + 1; // Java의 Calendar에서 월은 0부터 시작하기 때문에 1을 더해줌
 
                 // 현재 년도 및 월에 해당하는 예산 정보를 가져옴
-                Budget budget = db.budgetDao().getBudgetByMonthYear(currentYear, String.valueOf(currentMonth));
+                Budget budget = db.budgetDao().getBudgetByMonthYear(currentYear, currentMonth);
 
                 if(budget != null){
                     // 해당 예산 정보가 있으면 업데이트
@@ -369,7 +395,7 @@ public class MainActivity extends AppCompatActivity {
                     // 해당 예산 정보가 없으면 새로 생성
                     Budget newBudget = new Budget();
                     newBudget.year = currentYear;
-                    newBudget.month = String.valueOf(currentMonth);
+                    newBudget.month = currentMonth;
                     newBudget.amount = newBudgetAmount;
                     db.budgetDao().insert(newBudget);
                 }
@@ -381,22 +407,38 @@ public class MainActivity extends AppCompatActivity {
     }
 
 
-    // DB 객체 추가 메소드 (10개)
+    // DB 객체 추가 메소드 (11개)
     public void initializeDB() {
         AppDatabase db = AppDatabase.getDatabase(this);
         new Thread(() -> {
-            // Budget 객체를 생성하고 삽입합니다.
-            Budget initialBudget = new Budget();
-            // ... (생략) ...
-            long budgetId = db.budgetDao().insertAndGetId(initialBudget);
+            // 현재 년도와 월을 가져옴
+            Calendar calendar = Calendar.getInstance();
+            int currentYear = calendar.get(Calendar.YEAR);
+            int currentMonth = calendar.get(Calendar.MONTH) + 1;
 
-            for (int i = 1; i <= 10; i++) {
+            // 현재 년도와 월에 해당하는 Budget 객체를 가져옴
+            Budget existingBudget = db.budgetDao().getBudgetByMonthYear(currentYear, currentMonth);
+            if (existingBudget == null) {
+                // 만약 해당하는 Budget 객체가 없다면, 새 Budget 객체를 생성하고 삽입
+                Budget initialBudget = new Budget();
+                initialBudget.year = currentYear;
+                initialBudget.month = currentMonth;
+                existingBudget = initialBudget;
+                db.budgetDao().insert(existingBudget);
+            }
+
+            // Budget 객체의 ID를 가져옴
+            int budgetId = existingBudget.id;
+
+            for (int i = 0; i <= 10; i++) {
                 Expense expense = new Expense();
-                // Expense의 BudgetID를 설정합니다.
-                expense.setBudgetId((int) budgetId);
+                // Expense의 BudgetID를 설정
+                expense.setBudgetId(budgetId);
                 db.expenseDao().insert(expense);
             }
         }).start();
+
+        Log.d("Debug", "Expense Table is initialized");
     }
 
 

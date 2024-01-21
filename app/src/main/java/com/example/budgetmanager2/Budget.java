@@ -9,7 +9,7 @@ public class Budget {
 
     public int year;
 
-    public String month;
+    public int month;
 
     public int amount;
 
