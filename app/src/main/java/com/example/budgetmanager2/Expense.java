@@ -24,6 +24,11 @@ public class Expense {
 
     public String cost = ""; // null 값 저장하기 위해 int -> Integer로 변경
 
+    // ID를 설정하는 메소드
+    public void setId(int id) { this.id = id; }
+
+    public void setDate(String date) { this.date = date; }
+
     // 내용을 설정하는 메소드
     public void setContent(String content) {
         this.content = content;
@@ -39,9 +44,8 @@ public class Expense {
         this.budgetId = budgetId;
     }
 
-    public void setDate(Date time) {
-        this.date = String.valueOf(time);
-    }
+
+    public int getId() { return this.id;  }
     public String getDate() {
         return this.date;
     }
@@ -50,4 +54,14 @@ public class Expense {
     }
     public String getCost() { return this.cost;  }
 
+    @Override
+    public String toString() {
+        return "Expense{" +
+                "id=" + id +
+                ", budgetId=" + budgetId + '\'' +
+                ", date='" + date + '\'' +
+                ", content='" + content + '\'' +
+                ", cost=" + cost +
+                '}';
+    }
 }

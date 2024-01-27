@@ -30,4 +30,7 @@ public interface BudgetDAO {
     @Query("SELECT * FROM Budget WHERE year = :year AND month = :month LIMIT 1")
     Budget getBudgetByMonthYear(int year, int month);
 
+    // 현재 년도 및 월에 맞는 id 가져오기 위한 쿼리
+    @Query("SELECT id FROM Budget WHERE year = :year AND month = :month LIMIT 1")
+    Integer getIdByYearAndMonth(int year, int month);
 }

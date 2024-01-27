@@ -3,6 +3,7 @@ package com.example.budgetmanager2.DAO;
 import androidx.room.Dao;
 import androidx.room.Delete;
 import androidx.room.Insert;
+import androidx.room.OnConflictStrategy;
 import androidx.room.Query;
 import androidx.room.Update;
 
@@ -12,11 +13,11 @@ import java.util.List;
 
 @Dao
 public interface ExpenseDAO {
-    @Insert
-    void insert(Expense expense);
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    long insert(Expense expense);
 
     @Update
-    void update(Expense expense);
+    int update(Expense expense);
 
     @Delete
     void delete(Expense expense);
@@ -37,4 +38,6 @@ public interface ExpenseDAO {
     @Query("SELECT SUM(cost) FROM expense WHERE budgetId = :budgetId")
     int getSumOfCost(int budgetId);
 
+    @Query("SELECT * FROM Expense WHERE budgetId = :budgetID")
+    List<Expense> getExpensesByBudgetId(Integer budgetID);
 }

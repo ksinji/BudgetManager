@@ -27,10 +27,13 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+import androidx.room.Room;
 
 import com.example.budgetmanager2.DAO.BudgetDAO;
+import com.example.budgetmanager2.DAO.ExpenseDAO;
 import com.example.budgetmanager2.Database.AppDatabase;
 
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -138,33 +141,34 @@ public class MainActivity extends AppCompatActivity {
         adapter = new expenseAdapter(expenseList, this);
 
 
-        // 기본적으로 11개의 행 생성
-        for(int i = 0; i < 11; i++) {
-            Expense newExpense = new Expense();
-            expenseList.add(newExpense);
-        }
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                BudgetDAO budgetDao = AppDatabase.getDatabase(MainActivity.this).budgetDao();
+                Integer budgetID = budgetDao.getIdByYearAndMonth(currentYear, currentMonthNum);
+                Log.d("DB", "budgetID = " + budgetID);
+
+                ExpenseDAO expenseDao = AppDatabase.getDatabase(MainActivity.this).expenseDao();
+                List<Expense> expenses = expenseDao.getExpensesByBudgetId(budgetID);  // 현재 년도와 월에 맞는 Expense 객체만 불러오기
+                Log.d("DB", "Expenses: " + expenses);
+
+                expenseList.addAll(expenses);
+
+                // Expense 테이블의 행 개수가 11개 미만이라면, 나머지를 새로운 Expense 객체로 채우기
+                for(int i = expenses.size(); i < 11; i++) {
+                    Expense newExpense = new Expense();
+                    newExpense.setId(i+1);  // i를 id로 설정
+                    newExpense.setBudgetId(budgetID); // BudgetId로 설정
+                    expenseList.add(newExpense);
+                }
+            }
+        }).start();
+
 
         // BudgetAdapter에게 데이터가 변경되었음을 알림
         adapter = new expenseAdapter(expenseList, this);
         adapter.notifyDataSetChanged();
 
-
-        /*
-
-        SharedPreferences sharedPreferences = getSharedPreferences("BudgetManager", MODE_PRIVATE);
-        boolean isFirstRun = sharedPreferences.getBoolean("FirstRun", true);
-
-        if (isFirstRun) {
-            // 앱이 처음 실행된 경우에만 DB에도 11개의 빈 행 생성
-            initializeDB();
-
-            // 이제 앱이 처음 실행된 것이 아니므로 FirstRun 값을 false로 설정
-            SharedPreferences.Editor editor = sharedPreferences.edit();
-            editor.putBoolean("FirstRun", false);
-            editor.apply();
-        }
-
-        */
 
 
         // RecyclerView와 Adapter 연결
@@ -188,10 +192,35 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        // TODO: 지출 내역 불러오기
+        // 저장 버튼 클릭 시 Expense 테이블에 저장
+        //TODO: 남은 예산 계산도 해줘야 함
+        Button saveButton = findViewById(R.id.saveButton);
+        saveButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                ArrayList<Expense> expenses = adapter.getExpenses(recyclerView);
+                Log.d("MainActivity", "Expenses: " + expenses.toString()); // 반환하는 expenses 리스트를 로그로 출력
+
+                ExpenseDAO expenseDao = AppDatabase.getDatabase(MainActivity.this).expenseDao();
 
 
-        // 남은 예산 출력 기능 --> TODO: 예산이 변경되거나 새로운 소비 정보가 DB에 추가될 때마다 실행되어야 함
+                new Thread(() -> {  // 백그라운드 스레드에서 데이터베이스 작업 수행
+                    for (Expense expense : expenses) {
+                        BudgetDAO budgetDao = AppDatabase.getDatabase(MainActivity.this).budgetDao();
+                        Integer budgetID = budgetDao.getIdByYearAndMonth(currentYear, currentMonthNum);
+                        expense.setBudgetId(budgetID); // BudgetId로 설정
+                        Log.d("MainActivity", "Expense: " + expense.toString()); // Expense 객체를 로그로 출력
+                        Log.d("MainActivity", "Expense ID: " + expense.getId()); // Expense ID를 로그로 출력
+
+                        long id = expenseDao.insert(expense); // insert 메소드를 사용하여 Expense 객체를 데이터베이스에 추가
+                        Log.d("DB", "Inserted or updated expense with ID " + id);
+                    }
+                }).start();  // 백그라운드 스레드 시작
+            }
+        });
+
+
+        // 남은 예산 출력 기능
         // 새로운 스레드를 생성해서 DB 작업을 수행
         new Thread(new Runnable() {
             private int sumOfCost;
@@ -226,15 +255,18 @@ public class MainActivity extends AppCompatActivity {
         private List<Expense> expenseList;
         private Context context;
 
+
         public expenseAdapter(List<Expense> expenseList, Context context) {
             this.expenseList = expenseList;
             this.context = context;
         }
 
+
         @NonNull
         @Override
         public ExpenseViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
             View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.list_recycler, parent, false);
+
             return new ExpenseViewHolder(view);
         }
 
@@ -242,6 +274,8 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onBindViewHolder(@NonNull ExpenseViewHolder holder, int position) {
             Expense expense = expenseList.get(position);
+            holder.id = expense.id;  // ViewHolder에 id 정보를 설정
+            Log.d("DB", "expense.id = " + expense.id);
             String date = expense.getDate();
             String content = expense.getContent();
             String cost = expense.getCost();
@@ -256,10 +290,15 @@ public class MainActivity extends AppCompatActivity {
             return expenseList.size();
         }
 
+
         public class ExpenseViewHolder extends RecyclerView.ViewHolder {
+
+            public int id;
+            public int budgetId;
             TextView date;
             EditText content;
             EditText cost;
+
 
             public ExpenseViewHolder(View itemView) {
                 super(itemView);
@@ -277,13 +316,17 @@ public class MainActivity extends AppCompatActivity {
 
             // 선택된 날짜 출력 기능
             public void showDatePickerDialog(TextView v, int selectedRow) {
-                // 선택된 행의 인덱스를 id에 할당
-                int id = selectedRow;
 
                 Calendar calendar = Calendar.getInstance();
                 int year = calendar.get(Calendar.YEAR);
                 int month = calendar.get(Calendar.MONTH);
                 int day = calendar.get(Calendar.DAY_OF_MONTH);
+
+                // 현재 년도 및 월의 첫 날과 마지막 날 계산
+                Calendar firstDayOfMonth = Calendar.getInstance();
+                firstDayOfMonth.set(year, month, 1);
+                Calendar lastDayOfMonth = Calendar.getInstance();
+                lastDayOfMonth.set(year, month, firstDayOfMonth.getActualMaximum(Calendar.DAY_OF_MONTH));
 
                 DatePickerDialog datePickerDialog = new DatePickerDialog(context,
                         new DatePickerDialog.OnDateSetListener() {
@@ -326,22 +369,39 @@ public class MainActivity extends AppCompatActivity {
                                 String date = String.format("%02d/%02d(%s)", month + 1, dayOfMonth, dayOfWeekStr);
                                 v.setText(date);
 
-                                // 데이터베이스에 날짜 저장
-                                new Thread(() -> {
-                                    Expense expense = db.expenseDao().getExpenseById(id);
-                                    Log.d("Expense Check", "Expense: " + expense);
-                                    expense.setDate(selectedCalendar.getTime());
-                                    Log.d("Date Check", "Date: " + expense.getDate());
-                                    db.expenseDao().update(expense);
-                                    Expense updatedExpense = db.expenseDao().getExpenseById(id);
-                                    Log.d("Update Check", "Updated Expense Date: " + updatedExpense.getDate());
-                                }).start();
-
                             }
                         }, year, month, day);
 
+                // DatePickerDialog에서 선택 가능한 날짜 범위 설정
+                datePickerDialog.getDatePicker().setMinDate(firstDayOfMonth.getTimeInMillis());
+                datePickerDialog.getDatePicker().setMaxDate(lastDayOfMonth.getTimeInMillis());
+
                 datePickerDialog.show();
             }
+
+        }
+
+
+        public ArrayList<Expense> getExpenses(RecyclerView recyclerView) {
+            ArrayList<Expense> expenses = new ArrayList<>();
+            for (int i = 0; i < getItemCount(); i++) {
+                ExpenseViewHolder holder = (ExpenseViewHolder) recyclerView.findViewHolderForAdapterPosition(i);
+                if (holder != null) {
+                    Expense expense = new Expense();
+                    if (holder.id != -1) {
+                        expense.setId(holder.id);  // ViewHolder에 저장된 id 정보를 사용
+                    }
+                    // 날짜 문자열을 직접 설정
+                    expense.setBudgetId(holder.budgetId);  // ViewHolder에 저장된 budgetId 정보를 사용
+                    expense.setDate(holder.date.getText().toString());
+                    expense.setContent(holder.content.getText().toString());
+                    expense.setCost(holder.cost.getText().toString());
+                    expenses.add(expense);
+                } else {
+                    Log.d("MainActivity", "ViewHolder for position " + i + " is null");
+                }
+            }
+            return expenses;
         }
     }
 
