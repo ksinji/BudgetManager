@@ -215,6 +215,8 @@ public class MainActivity extends AppCompatActivity {
                         long id = expenseDao.insert(expense); // insert 메소드를 사용하여 Expense 객체를 데이터베이스에 추가
                         Log.d("DB", "Inserted or updated expense with ID " + id);
                     }
+                    // 데이터베이스 작업이 끝난 후에 남은 예산을 계산하고 보여주기
+                    calculateAndShowRemainingBudget();
                 }).start();  // 백그라운드 스레드 시작
             }
         });
@@ -467,39 +469,32 @@ public class MainActivity extends AppCompatActivity {
     }
 
 
-    // DB 객체 추가 메소드 (11개)
-    public void initializeDB() {
-        AppDatabase db = AppDatabase.getDatabase(this);
-        new Thread(() -> {
-            // 현재 년도와 월을 가져옴
-            Calendar calendar = Calendar.getInstance();
-            int currentYear = calendar.get(Calendar.YEAR);
-            int currentMonth = calendar.get(Calendar.MONTH) + 1;
+    // 남은 예산을 계산하고 보여주는 메소드
+    private void calculateAndShowRemainingBudget() {
+        Calendar calendar = Calendar.getInstance();
+        int currentYear = calendar.get(Calendar.YEAR);
+        int currentMonthNum = calendar.get(Calendar.MONTH) + 1;
+        new Thread(new Runnable() {
+            private int sumOfCost;
+            @Override
+            public void run() {
+                Budget budgetData = db.budgetDao().getBudgetByMonthYear(currentYear, currentMonthNum);
+                if (budgetData != null) {
+                    sumOfCost = db.expenseDao().getSumOfCost(budgetData.id);
+                }
 
-            // 현재 년도와 월에 해당하는 Budget 객체를 가져옴
-            Budget existingBudget = db.budgetDao().getBudgetByMonthYear(currentYear, currentMonth);
-            if (existingBudget == null) {
-                // 만약 해당하는 Budget 객체가 없다면, 새 Budget 객체를 생성하고 삽입
-                Budget initialBudget = new Budget();
-                initialBudget.year = currentYear;
-                initialBudget.month = currentMonth;
-                existingBudget = initialBudget;
-                db.budgetDao().insert(existingBudget);
-            }
-
-            // Budget 객체의 ID를 가져옴
-            int budgetId = existingBudget.id;
-
-            for (int i = 0; i <= 10; i++) {
-                Expense expense = new Expense();
-                // Expense의 BudgetID를 설정
-                expense.setBudgetId(budgetId);
-                db.expenseDao().insert(expense);
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (budgetData != null) {
+                            int remainingBudget = budgetData.amount - sumOfCost;
+                            TextView nowBudgetTextView = findViewById(R.id.nowBudget);
+                            nowBudgetTextView.setText(String.valueOf(remainingBudget));
+                        }
+                    }
+                });
             }
         }).start();
-
-        Log.d("Debug", "Expense Table is initialized");
     }
-
 
 }
